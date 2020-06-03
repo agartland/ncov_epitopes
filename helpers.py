@@ -3,16 +3,20 @@ from functools import partial
 import operator
 import pandas as pd
 import numpy as np
+import numba as nb
 
 def get_kmers(seq, k):
     return [seq[i:i+k] for i in range(len(seq)-k+1)]
 
 def jaccard_similarity(lista, listb, **kwargs):
+    if len(lista) == 0 and len(listb) == 0:
+        return np.nan
     seta = set(lista)
     setb = set(listb)
     inters = seta.intersection(setb)
     union = seta.union(setb)
-    return len(inters)/len(union)
+    res = len(inters)/len(union)
+    return res
 
 def fuzzy_overlap(lista, listb, sim_dict={}):
     i = []
@@ -70,3 +74,59 @@ def create_sim_dict(seqs, mm_thresh=1, k=9):
                 and we only need to store one ordering of the pair"""
                 sim_dict[(mer1, mer2)] = sim
     return sim_dict
+
+
+"""Need a table of all kmers, by species, with their closest match
+in each of the other species
+
+Build this for each species and each other species at a time."""
+alphabet = 'ARNDCQEGHILKMFPSTWYVBZX'
+def seqs2mat(seqs, alphabet=alphabet):
+    """Convert a collection of AA sequences into a
+    numpy matrix of integers for fast comparison.
+
+    Requires all seqs to have the same length."""
+    L1 = len(seqs[0])
+    mat = np.zeros((len(seqs), L1), dtype=np.int8)
+    for si, s in enumerate(seqs):
+        assert L1 == len(s), "All sequences must have the same length: L1 = %d, but L%d = %d" % (L1, si, len(s))
+        for aai, aa in enumerate(s):
+            mat[si, aai] = alphabet.index(aa)
+    return mat
+
+def vec2seq(vec, alphabet=alphabet):
+    """Convert a numpy array of integers back into a AA sequence.
+    (opposite of seq2vec())"""
+    return ''.join([alphabet[aai] for aai in vec])
+
+def mat2seqs(mat, alphabet=alphabet):
+    """Convert a matrix of integers into AA sequences."""
+    return [''.join([alphabet[aai] for aai in mat[i,:]]) for i in range(mat.shape[0])]
+
+@nb.jit(nb.int32[:,:](nb.int8[:, :], nb.int8[:, :]), nopython=True, parallel=True)
+def closest_match(kmers, matches):
+    """contains index of the closest match
+    and the number of mismatches"""
+    out = np.zeros((kmers.shape[0], 2), dtype=np.int32)
+    for k_i in nb.prange(kmers.shape[0]):
+        min_mm = kmers.shape[1]
+        min_i = -1
+        for m_i in range(matches.shape[0]):
+            mm = 0
+            for pos_i in range(kmers.shape[1]):
+                if kmers[k_i, pos_i] != matches[m_i, pos_i]:
+                    mm += 1
+            if mm < min_mm:
+                min_mm = mm
+                min_i = m_i
+        out[k_i, 0] = min_i
+        out[k_i, 1] = min_mm
+        """
+        if min_mm <= 1:
+            print(kmers[k_i, :], matches[min_i, :], min_mm)
+            print(vec2seq(kmers[k_i, :]), vec2seq(matches[min_i, :]))
+        """
+    return out
+
+
+
