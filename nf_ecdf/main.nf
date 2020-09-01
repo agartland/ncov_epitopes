@@ -3,9 +3,11 @@ params.output_folder = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/results"
 params.batchfile = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/dill_manifest.csv"
 params.ref = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/human_T_beta_bitanova_unique_clones_sampled_1220K.csv"
 
+ref_file = file(params.ref)
+
 Channel.from(file(params.batchfile))
     .splitCsv(header: true, sep: ",")
-    .map { sample ->[sample.name, file(sample.filename)] }
+    .map { sample ->[sample.file, sample.name, file(sample.complete)] }
     .set{ input_channel }
 
 process simple {
@@ -21,8 +23,8 @@ process simple {
     errorStrategy 'finish'
     
     input: 
-        set name, file(filename) from input_channel
-        file(reference) from params.ref
+        set file, name, file(complete) from input_channel
+        file reference from ref_file
     
     script:
     """
@@ -34,7 +36,7 @@ process simple {
 
     # aws s3 cp s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/human_T_beta_bitanova_unique_clones_sampled_1220K.csv ./
 
-    python mira_enrichment_compute_ecdf.py --dill ${filename} \
+    python mira_enrichment_compute_ecdf.py --dill ${complete} \
                                            --ref ${reference}
                                            --ncpus 2 --subsample 100
 
