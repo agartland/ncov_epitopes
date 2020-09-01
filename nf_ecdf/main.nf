@@ -1,35 +1,43 @@
 // These are defaults which can be overwriten with --output_folder
-params.output_folder = "s3://fh-pi-kublin-j-microbiome/training/results"
-params.batchfile = "s3://fh-pi-kublin-j-microbiome/training/manifest.csv"
-
+params.output_folder = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/results"
+params.batchfile = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/dill_manifest.csv"
+params.ref = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/human_T_beta_bitanova_unique_clones_sampled_1220K.csv"
 
 Channel.from(file(params.batchfile))
     .splitCsv(header: true, sep: ",")
     .map { sample ->[sample.name, file(sample.filename)] }
     .set{ input_channel }
 
-
 process simple {
 
-    container 'quay.io/kmayerb/tcrdist3:0.1.4'
+    container 'quay.io/afioregartland/python_container'
 
-    publishDir params.output_folder, mode: 'copy', overwrite: true
+    publishDir params.output_folder, mode: 'copy', overwrite: true, pattern: '*.feather'
     
     memory '1 GB'
     
-    cpus 1
+    cpus 2
 
     errorStrategy 'finish'
     
     input: 
-    	set name, file(filename) from input_channel
+        set name, file(filename) from input_channel
+        file(reference) from params.ref
     
-    output: 
-    	file("${filename}.outfile.csv") into output_channel
-
     script:
     """
-    pip install requests
-    hello.py ${filename}
+    conda activate py36
+
+    pip install git+git://github.com/kmayerb/tcrdist3.git
+
+    curl -k -L https://github.com/agartland/ncov_epitopes/mira_enrichment_compute_ecdf.py -o mira_enrichment_compute_ecdf.py
+
+    # aws s3 cp s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/human_T_beta_bitanova_unique_clones_sampled_1220K.csv ./
+
+    python mira_enrichment_compute_ecdf.py --dill ${filename} \
+                                           --ref ${reference}
+                                           --ncpus 2 --subsample 100
+
+    # aws s3 cp ./ s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/ --recursive --exclude "*" --include "*.feather"                                       
     """
 }
