@@ -81,6 +81,11 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                         chains=['beta'],
                         compute_distances=False)
 
+
+    """Compute pgen of each MIRA TCR"""
+    olga_beta  = OlgaModel(chain_folder="human_T_beta", recomb_type="VDJ")
+    ref_tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(tr.clone_df.cdr3_b_aa)
+
     out = []
     print(rep_fn)
     for metric in ['tcrdist', 'tcrdist-cdr3', 'edit']:
@@ -103,6 +108,8 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                     chains=['beta'], 
                     db_file='alphabeta_gammadelta_db.tsv', 
                     compute_distances=False)
+
+        tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(tr.clone_df.cdr3_b_aa)
         
         """with open(rep_fn, 'rb') as fh:
             tr = dill.load(fh)"""
@@ -135,7 +142,8 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                                        fclust_thresh=fclust_thresh,
                                        label=lab,
                                        name=epitope_name,
-                                       verus='rep')
+                                       versus='rep',
+                                       pgen=np.median(tr.clone_df['pgen_cdr3_b_aa'].values[lab_ind]))
                 out.append(tmp_df)
 
             """Compute distances to the reference for each cluster and compute ECDF vs reference"""
@@ -148,7 +156,8 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                                        fclust_thresh=fclust_thresh,
                                        label=lab,
                                        name=epitope_name,
-                                       verus='ref')
+                                       versus='ref',
+                                       pgen=np.median(tr.clone_df['pgen_cdr3_b_aa'].values[lab_ind]))
                 out.append(tmp_df)
     out = pd.concat(out, axis=0)
     return out
