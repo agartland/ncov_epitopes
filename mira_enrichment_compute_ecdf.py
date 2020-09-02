@@ -84,7 +84,7 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
 
     """Compute pgen of each MIRA TCR"""
     olga_beta  = OlgaModel(chain_folder="human_T_beta", recomb_type="VDJ")
-    ref_tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(tr.clone_df.cdr3_b_aa)
+    ref_tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(ref_tr.clone_df.cdr3_b_aa)
 
     out = []
     print(rep_fn)
