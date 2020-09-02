@@ -97,9 +97,15 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
 
         # rep_fn = opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed', rep_fn)
         print(f'\t{metric}')
+        rep_df = pd.read_csv(rep_fn).assign(count=1)
 
-        with open(rep_fn, 'rb') as fh:
-            tr = dill.load(fh)
+        tr = TCRrep(cell_df=rep_df, 
+                    organism='human', 
+                    chains=['beta'], 
+                    db_file='alphabeta_gammadelta_db.tsv', 
+                    compute_distances=False)
+        """with open(rep_fn, 'rb') as fh:
+            tr = dill.load(fh)"""
 
         """Compute repertoire PW distances and create flat clusters"""
         rep_pwmat = _pwrect(tr, clone_df1=tr.clone_df,
@@ -149,7 +155,7 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create ECDFs for a repertoire versus a reference.')
-    parser.add_argument('--dill', type=str,
+    parser.add_argument('--rep', type=str,
                         help='path to a dill file containing the TCRRep')
     parser.add_argument('--ref', type=str,
                         help='path to a CSV file containing the reference clones')
