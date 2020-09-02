@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from os.path import join as opj
 import sys
-import dill
 # from glob import glob
 import os
 
@@ -21,7 +20,7 @@ from tcrdist.pgen import OlgaModel
 import argparse
 
 """EXAMPLE:
-python mira_enrichment_compute_ecdf.py --dill ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.dill --ref ~/fg_data/tcrdist/datasets/human_T_beta_bitanova_unique_clones_sampled_1220K.csv --ncpus 3 --subsample 100
+python mira_enrichment_compute_ecdf.py --rep ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv --ref ~/fg_data/tcrdist/datasets/human_T_beta_bitanova_unique_clones_sampled_1220K.csv --ncpus 3 --subsample 100
 """
 
 def compute_ecdf(data, counts=None, thresholds=None):
@@ -99,11 +98,12 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
         print(f'\t{metric}')
         rep_df = pd.read_csv(rep_fn).assign(count=1)
 
-        tr = TCRrep(cell_df=rep_df, 
+        tr = TCRrep(cell_df=rep_df[['v_b_gene','j_b_gene','cdr3_b_aa','epitope','experiment','subject', 'count']], 
                     organism='human', 
                     chains=['beta'], 
                     db_file='alphabeta_gammadelta_db.tsv', 
                     compute_distances=False)
+        
         """with open(rep_fn, 'rb') as fh:
             tr = dill.load(fh)"""
 
@@ -156,7 +156,7 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create ECDFs for a repertoire versus a reference.')
     parser.add_argument('--rep', type=str,
-                        help='path to a dill file containing the TCRRep')
+                        help='path to a CSV file containing the seqs for making a TCRRep')
     parser.add_argument('--ref', type=str,
                         help='path to a CSV file containing the reference clones')
     parser.add_argument('--ncpus', type=int,
@@ -177,6 +177,6 @@ if __name__ == '__main__':
                      'mira_epitope_131_104_HLMSFPQSA_YHLMSFPQSA.tcrdist3.csv.dill',
                      'mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.dill']"""
 
-    out = run_one(ref_fn=args.ref, rep_fn=args.dill, ss=args.subsample, ncpus=args.ncpus)
-    print('Writing results to: ', f'{args.dill.replace(".tcrdist3.csv.dill", "")}_ecdfs.feather')
-    feather.write_dataframe(out, f'{args.dill.replace(".tcrdist3.csv.dill", "")}_ecdfs.feather')
+    out = run_one(ref_fn=args.ref, rep_fn=args.rep, ss=args.subsample, ncpus=args.ncpus)
+    print('Writing results to:', f'{args.rep.replace(".tcrdist3.csv", "")}_ecdfs.feather')
+    feather.write_dataframe(out, f'{args.rep.replace(".tcrdist3.csv", "")}_ecdfs.feather')
