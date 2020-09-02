@@ -172,4 +172,5 @@ if __name__ == '__main__':
                      'mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.dill']"""
 
     out = run_one(ref_fn=args.ref, rep_fn=args.dill, ss=args.subsample, ncpus=args.ncpus)
+    print('Writing results to: ', f'{args.dill.replace(".tcrdist3.csv.dill", "")}_ecdfs.feather')
     feather.write_dataframe(out, f'{args.dill.replace(".tcrdist3.csv.dill", "")}_ecdfs.feather')
