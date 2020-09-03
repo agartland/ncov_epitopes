@@ -136,14 +136,15 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
             # rep_ecdf = np.zeros((int(np.max(labels)), len(metric_thresholds)))
             for lab in range(1, np.max(labels) + 1):
                 lab_ind = labels == lab
-                rep_ecdf = compute_ecdf(np.mean(rep_pwmat[lab_ind, :], axis=0), thresholds=metric_thresholds)
+                rep_ecdf = compute_ecdf(np.mean(rep_pwmat[lab_ind, :][:, ~lab_ind], axis=0), thresholds=metric_thresholds)
                 tmp_df = pd.DataFrame({'ecdf':rep_ecdf, 'thresholds':metric_thresholds})
                 tmp_df = tmp_df.assign(metric=metric,
                                        fclust_thresh=fclust_thresh,
                                        label=lab,
                                        name=epitope_name,
                                        versus='rep',
-                                       pgen=np.median(tr.clone_df['pgen_cdr3_b_aa'].values[lab_ind]))
+                                       pgen=np.median(tr.clone_df['pgen_cdr3_b_aa'].values[lab_ind]),
+                                       K=lab_ind.sum())
                 out.append(tmp_df)
 
             """Compute distances to the reference for each cluster and compute ECDF vs reference"""
@@ -157,7 +158,8 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                                        label=lab,
                                        name=epitope_name,
                                        versus='ref',
-                                       pgen=np.median(tr.clone_df['pgen_cdr3_b_aa'].values[lab_ind]))
+                                       pgen=np.median(tr.clone_df['pgen_cdr3_b_aa'].values[lab_ind]),
+                                       K=lab_ind.sum())
                 out.append(tmp_df)
     out = pd.concat(out, axis=0)
     return out

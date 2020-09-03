@@ -1,5 +1,5 @@
 // These are defaults which can be overwriten with --output_folder
-params.output_folder = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/results/"
+params.output_folder = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/"
 params.batchfile = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/csv_manifest.csv"
 params.ref = "s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/human_T_beta_bitanova_unique_clones_sampled_1220K.csv"
 
@@ -8,9 +8,12 @@ ref_file = file(params.ref)
 Channel.from(file(params.batchfile))
     .splitCsv(header: true, sep: ",")
     .map { sample ->[sample.file, sample.name, file(sample.complete)] }
+    //.randomSample( 5, 110820 )
     .set{ input_channel }
+    
 // .take( 3 )
 // .randomSample( 2 )
+// .randomSample( 5, 110820 )
 process mira_ecdf {
 
     container 'quay.io/afioregartland/python_container'
@@ -39,7 +42,7 @@ process mira_ecdf {
 
     conda run -n py36 python mira_enrichment_compute_ecdf.py --rep ${complete} \
                                            --ref ${reference} \
-                                           --ncpus 20 #--subsample 100
+                                           --ncpus 4 --subsample 100000
     mkdir results
     mv *.feather results/
     aws s3 cp ./results s3://fh-pi-gilbert-p/agartlan/ncov_tcrs/mira/manual_results/ --recursive --exclude "*" --include "*.feather"                                       
