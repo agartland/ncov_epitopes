@@ -20,9 +20,9 @@ from tcrdist.pgen import OlgaModel
 import argparse
 
 """EXAMPLE:
-python mira_enrichment_compute_ecdf.py --rep ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv \
-                                       --ref ~/fg_data/tcrdist/datasets/human_T_beta_bitanova_unique_clones_sampled_1220K.csv \
-                                       --ncpus 3 \
+python mira_enrichment_compute_ecdf.py --rep ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv \
+                                       --ref ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/mira_bkgd/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.olga100K_brit100K_bkgd.csv \
+                                       --ncpus 2 \
                                        --subsample 100
 """
 
@@ -117,7 +117,7 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                     db_file='alphabeta_gammadelta_db.tsv', 
                     compute_distances=False)
 
-        if tr.clone_df > 2000:
+        if tr.clone_df.shape[0] > 2000:
             """Limit size of MIRA set to 2000"""
             tr.clone_df = tr.clone_df.sample(n=2000, replace=False, random_state=110820)
 
