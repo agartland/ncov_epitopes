@@ -20,22 +20,28 @@ from tcrdist.pgen import OlgaModel
 import argparse
 
 """EXAMPLE:
-python mira_enrichment_compute_ecdf.py --rep ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv --ref ~/fg_data/tcrdist/datasets/human_T_beta_bitanova_unique_clones_sampled_1220K.csv --ncpus 3 --subsample 100
+python mira_enrichment_compute_ecdf.py --rep ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv \
+                                       --ref ~/fg_data/tcrdist/datasets/human_T_beta_bitanova_unique_clones_sampled_1220K.csv \
+                                       --ncpus 3 \
+                                       --subsample 100
 """
 
-def compute_ecdf(data, counts=None, thresholds=None):
-    """Computes the empirical cumulative distribution function at pre-specified
-    thresholds. Assumes thresholds is sorted and should be unique."""
+def compute_ecdf(data, counts=None, thresholds=None, weights=None):
+    """Computes the empirical cumulative distribution function for one
+    vector of distances using pre-specified thresholds.
+    Assumes thresholds is sorted and should be unique."""
+    if weights is None:
+        weights = np.ones(data.shape)
     if thresholds is None:
         thresholds = np.unique(data[:])
     if counts is None:
         counts = np.ones(data.shape)
     
-    tot = np.sum(counts)
+    tot = np.sum(counts * weights)
     # ecdf = np.array([np.sum((data <= t) * counts)/tot for t in thresholds])
     
     """Vectorized and faster, using broadcasting for the <= expression"""
-    ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None], axis=0) + 1) / (tot + 1)
+    ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None] * weights[:, None], axis=0) + 1) / (tot + 1)
     # n_ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None], axis=0) >= n).astype(int)
     return ecdf
 
@@ -81,7 +87,6 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                         chains=['beta'],
                         compute_distances=False)
 
-
     """Compute pgen of each MIRA TCR"""
     olga_beta  = OlgaModel(chain_folder="human_T_beta", recomb_type="VDJ")
     ref_tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(ref_tr.clone_df.cdr3_b_aa)
@@ -96,6 +101,9 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
             metric_thresholds = np.arange(1, 9)
             fcluster_thresholds = [0, 1, 2]
 
+        """Enforce no clustering analysis"""
+        fcluster_thresholds = [0]
+
         epitope_name = os.path.split(rep_fn)[1].split('.')[0]
         epitope_name = epitope_name.replace('mira_epitope_', 'M')
 
@@ -109,6 +117,10 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
                     db_file='alphabeta_gammadelta_db.tsv', 
                     compute_distances=False)
 
+        if tr.clone_df > 2000:
+            """Limit size of MIRA set to 2000"""
+            tr.clone_df = tr.clone_df.sample(n=2000, replace=False, random_state=110820)
+
         tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(tr.clone_df.cdr3_b_aa)
         
         """with open(rep_fn, 'rb') as fh:
@@ -118,11 +130,13 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
         rep_pwmat = _pwrect(tr, clone_df1=tr.clone_df,
                                 metric=metric,
                                 ncpus=ncpus)
+        print('Computed MIRA set pwrect.')
 
         ref_pwmat = _pwrect(tr, clone_df1=tr.clone_df,
                                 clone_df2=ref_tr.clone_df,
                                 metric=metric,
                                 ncpus=ncpus)
+        print('Computed reference pwrect.')
 
         for fclust_thresh in fcluster_thresholds:
             if fclust_thresh > 0:
@@ -151,7 +165,9 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
             # ref_ecdf = np.zeros((int(np.max(labels)), len(metric_thresholds)))
             for lab in range(1, np.max(labels) + 1):
                 lab_ind = labels == lab
-                ref_ecdf = compute_ecdf(np.mean(ref_pwmat[lab_ind, :], axis=0), thresholds=metric_thresholds)
+                ref_ecdf = compute_ecdf(np.mean(ref_pwmat[lab_ind, :], axis=0),
+                                        thresholds=metric_thresholds,
+                                        weights=ref_tr.clone_df['weights'])
                 tmp_df = pd.DataFrame({'ecdf':ref_ecdf, 'thresholds':metric_thresholds})
                 tmp_df = tmp_df.assign(metric=metric,
                                        fclust_thresh=fclust_thresh,

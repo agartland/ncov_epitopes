@@ -1,12 +1,11 @@
 import pandas as pd
 import numpy as np
 from os.path import join as opj
+import os
 import sys
 from functools import partial
-import dill
 from glob import glob
-
-import scipy.cluster.hierarchy as sch
+import feather
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -15,9 +14,6 @@ import seaborn as sns
 
 from fg_shared import *
 
-import pwseqdist as pwsd
-
-sys.path.append(opj(_git, 'tcrdist3'))
 import tcrdist as td
 from tcrdist.repertoire import TCRrep
 from tcrdist.pgen import OlgaModel
@@ -28,103 +24,172 @@ from pngpdf import PngPdfPages
 sys.path.append(opj(_git, 'ncov_epitopes'))
 from ecdf_helpers import *
 
-def _pwrect(tr, clone_df1, clone_df2=None, metric='tcrdist', chain='beta', ncpus=3):
-    if clone_df2 is None:
-        clone_df2 = tr.clone_df
-    
-    col = f'cdr3_{chain[0]}_aa'
+ecdf_fn = 'mira_epitope_131_104_HLMSFPQSA_YHLMSFPQSA_ecdfs.feather'
+ecdf_fn = 'mira_epitope_130_106_SSNVANYQK_ecdfs.feather'
+ecdf_fn = 'mira_epitope_114_144_LPPAYTNSF_ecdfs.feather'
+ecdf_fn = 'mira_epitope_7_4448_SEHDYQIGGYTEKW_YQIGGYTEK_YQIGGYTEKW_ecdfs.feather'
+ecdf_fn = 'mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET_ecdfs.feather'
 
-    if metric == 'tcrdist':
-        tr.cpus = ncpus
-        tr.chains = [chain]
-        tr.compute_rect_distances(df=clone_df1, df2=clone_df2, store=False)
-        pwmat = getattr(tr, f'rw_{chain}')
-    elif metric == 'tcrdist-cdr3':
-        pwmat = pwsd.apply_pairwise_rect(metric=pwsd.metrics.nb_vector_tcrdist,
-                                         seqs1=clone_df1[col],
-                                         seqs2=clone_df2[col],
-                                         ncpus=ncpus,
-                                         use_numba=True)
-    elif metric == 'edit':
-        pwmat = pwsd.apply_pairwise_rect(metric=pwsd.metrics.nb_vector_editdistance,
-                                         seqs1=clone_df1[col],
-                                         seqs2=clone_df2[col],
-                                         ncpus=ncpus,
-                                         use_numba=True)
-    return pwmat
+files = sorted([os.path.split(ff)[1] for ff in glob(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs/*.feather'))])
+for ecdf_fn in files:
+    print(ecdf_fn)
+    e = feather.read_dataframe(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs', ecdf_fn))
+    # e = e.rename({'verus':'versus'}, axis=1)
+    # print(e.groupby(['name', 'versus', 'metric', 'fclust_thresh'])['thresholds'].count())
 
-out_folder = opj(_fg_data, 'ncov_tcrs', 'adaptive_bio_r2', 'ecdf_2020-AUG-31')
+    min_pgen = e.loc[e['pgen'] > 0, 'pgen'].min()
+    e.loc[e['pgen'] == 0, 'pgen'] = min_pgen
+    """Too slow, do at plot time"""
+    # e = e.assign(pgen_color=e['pgen'].map(partial(color_lu, norm_pgen, mpl.cm.viridis.colors)))
 
-"""Load the reference sequences"""
-ref_fn = opj(_fg_data, 'tcrdist/datasets', 'human_T_beta_bitanova_unique_clones_sampled_1220K.csv')
-# olga_ref_fn = opj(_fg_data, 'tcrdist/datasets', 'human_T_beta_sim1000K.csv')
+    refk = 1e5
+    repk = int(ecdf_fn.split('_')[3])
+    p = np.logspace(np.log10(1/refk), 0, 500)
+    repp = (p*repk + 1) / (repk + 1)
+    refp = (p*refk + 1) / (refk + 1)
 
-ref_df = pd.read_csv(ref_fn)
-ref_df.columns = [{'v_b_name':'v_b_gene',
-                   'j_b_name':'j_b_gene',
-                   'cdr3_b_aa':'cdr3_b_aa'}.get(c, c) for c in ref_df.columns]
-ref_df.loc[:, 'count'] = 1
-ref_tr = TCRrep(cell_df=ref_df.iloc[:100], 
-                organism='human', 
-                chains=['beta'],
-                compute_distances=False)
+    """Plotting"""
+    def plot_one_ecdf(figh, ecdf, thresholds, epitope_name, colors=None, alpha=0.1):
+        axh = figh.add_axes([0.15, 0.15, 0.6, 0.7], yscale='log')
+        plt.ylabel(f'Proportion of {epitope_name} clones')
+        plt.xlabel(f'Distance from {epitope_name} clone')
+        if colors is None:
+            colors = ['k']*ecdf.shape[0]
 
-rep_filenames = glob(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed/*.dill'))
+        for tari in np.random.permutation(np.arange(ecdf.shape[0])):
+            x, y = make_step(thresholds, ecdf[tari, :])
+            axh.plot(x, y,
+                     color=colors[tari],
+                     alpha=alpha)
+        x, y = make_step(thresholds, np.mean(ecdf, axis=0))
+        axh.plot(x, y,
+                 color='r', #tr.clone_df['pgen_b_color'].iloc[tari],
+                 alpha=1)
+        return axh
 
-rep_filenames = ['mira_epitope_61_428_GRLQSLQTY_LITGRLQSL_RLQSLQTYV.tcrdist3.csv.dill',
-                 'mira_epitope_131_104_HLMSFPQSA_YHLMSFPQSA.tcrdist3.csv.dill',
-                 'mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.dill']
+    def plot_mean_ecdf(figh, e, gbcols=['versus', 'metric', 'fclust_thresh']):
+        axh = figh.add_axes([0.15, 0.15, 0.6, 0.7], yscale='log')
+        plt.ylabel(f'Proportion of clones')
+        plt.xlabel(f'Distance from clone')
+        for gbvals, gby in e.groupby(gbcols):
+            emat = gby.set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
+            x, y = make_step(emat.columns, np.mean(emat.values, axis=0))
+            axh.plot(x, y, alpha=0.6, label='|'.join([str(s) for s in gbvals]))
+            lab = '|'.join([e.iloc[0][s] for s in ['versus', 'metric', 'fclust_thresh'] if not s in gbcols])
+            plt.title(f"{e['name'].iloc[0]}: {lab}")
+        plt.legend(loc=0)
+        return axh
 
-for rep_fn in rep_filenames:
-    for metric, fclust_thresh in ['tcrdist', 'tcrdist-cdr3', 'edit']:
-        if 'tcr' in metric:
-            metric_thresholds = np.arange(1, 101)
-            fcluster_thresholds = [0, 25, 50]
+    def plot_one_roc(figh, ess, alpha=0.1):
+        axh = figh.add_axes([0.15, 0.15, 0.6, 0.7], yscale='log', xscale='log')
+        plt.ylabel(f'Proportion of enriched repertoire near cluster')
+        plt.xlabel(f'Proportion of reference near cluster')
+
+        if 'tcrdist' in ess['metric'].iloc[0]:
+            ann = [12, 25, 50, 75]
         else:
-            metric_thresholds = np.arange(1, 9)
-            fcluster_thresholds = [0, 1, 2]
+            ann = [1, 2, 3, 4]
 
-        epitope_name = os.path.split(rep_filenames[0])[1].split('.')[0]
-        rep_fn = opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed', rep_fn)
+        rep = ess.loc[ess['versus'] == 'rep'].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
+        ref = ess.loc[ess['versus'] == 'ref'].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
 
-        with open(rep_fn, 'rb') as fh:
-            tr = dill.load(fh)
+        colors = ess.drop_duplicates(subset=['label', 'pgen'])['pgen'].map(partial(color_lu, norm_pgen, mpl.cm.viridis.colors)).values
+        if alpha > 0:
+            for tari in np.random.permutation(np.arange(rep.shape[0])):
+                x, y = make_step(ref.values[tari, :], rep.values[tari, :])
+                axh.plot(x, y,
+                         color=colors[tari],
+                         alpha=alpha)
+        x, y = make_step(np.mean(ref, axis=0), np.mean(rep, axis=0))
+        axh.plot(x, y,
+                 color='r', #tr.clone_df['pgen_b_color'].iloc[tari],
+                 alpha=1)
+        x = np.mean(ref, axis=0).values
+        y = np.mean(rep, axis=0).values
+        for t in ann:
+            ti = np.nonzero(rep.columns == t)[0][0]
+            plt.plot(x[ti], y[ti], 'ks')
+            plt.annotate(xy=(x[ti], y[ti]),
+                         text=t,
+                         size='xx-small',
+                         ha='right',
+                         va='bottom')
+        xl = plt.xlim()
+        yl = plt.ylim()
+        mnmx = [ess['ecdf'].min(), ess['ecdf'].max()]
+        plt.plot(mnmx, mnmx, '--', color='gray', lw=2)
+        plt.plot(refp, repp, '--', color='gray', lw=2)
+        plt.ylim(yl)
+        plt.xlim(xl)
+        return axh
 
-        """Compute repertoire PW distances and create flat clusters"""
-        rep_pwmat = _pwrect(tr, clone_df1=tr.clone_df, metric=metric)
+    def plot_mean_roc(figh, ess, gbcols=['versus', 'metric', 'fclust_thresh'], alpha=0.1):
+        axh = figh.add_axes([0.15, 0.15, 0.6, 0.7], yscale='log', xscale='log')
+        plt.ylabel(f'Proportion of enriched repertoire near cluster')
+        plt.xlabel(f'Proportion of reference near cluster')
 
-        ref_pwmat = _pwrect(tr, clone_df1=tr.clone_df,
-                                clone_df2=ref_tr.clone_df, metric=metric)
-
-        for fclust_thresh in fcluster_thresholds:
-            if fclust_thresh > 0:
-                Z = sch.linkage(rep_pwmat, method='complete')
-                labels = sch.fcluster(Z, t=fclust_thresh, criterion='distance')
+        for gbvals, gby in ess.groupby(gbcols):
+            if 'tcrdist' in gbvals[0]:
+                ann = [12, 25, 50, 75]
             else:
-                labels = np.arange(1, rep_pwmat.shape[0] + 1)
+                ann = [1, 2, 3, 4]
 
-            """Compute ECDF for each cluster within the repertoire"""
-            rep_ecdf = np.zeros((int(np.max(labels)), len(metric_thresholds)))
-            for lab in range(1, np.max(labels) + 1):
-                lab_ind = labels == lab
-                rep_ecdf[lab-1, :] = compute_ecdf(np.mean(rep_pwmat[lab_ind, :], axis=0), thresholds=metric_thresholds)
+            rep = gby.loc[gby['versus'] == 'rep'].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
+            ref = gby.loc[gby['versus'] == 'ref'].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
+            x, y = make_step(np.mean(ref, axis=0), np.mean(rep, axis=0))
+            axh.plot(x, y, alpha=0.6, label='|'.join([str(s) for s in gbvals]))
+            lab = '|'.join([e.iloc[0][s] for s in ['versus', 'metric', 'fclust_thresh'] if not s in gbcols])
+            plt.title(f"{e['name'].iloc[0]}: {lab}")
+            
+            x = np.mean(ref, axis=0).values
+            y = np.mean(rep, axis=0).values
+            for t in ann:
+                ti = np.nonzero(rep.columns == t)[0][0]
+                plt.plot(x[ti], y[ti], 'ks')
+                plt.annotate(xy=(x[ti], y[ti]),
+                             text=t,
+                             size='xx-small',
+                             ha='right',
+                             va='bottom')
+        xl = plt.xlim()
+        yl = plt.ylim()
+        mnmx = [ess['ecdf'].min(), ess['ecdf'].max()]
+        plt.plot(mnmx, mnmx, '--', color='gray', lw=2)
+        plt.plot(refp, repp, '--', color='gray', lw=2)
+        plt.ylim(yl)
+        plt.xlim(xl)
+        plt.legend(loc=0)
+        return axh
 
-            """Compute distances to the reference for each cluster and compute ECDF vs reference"""
-            ref_ecdf = np.zeros((int(np.max(labels)), len(metric_thresholds)))
-            for lab in range(1, np.max(labels) + 1):
-                lab_ind = labels == lab
-                ref_ecdf[lab-1, :] = compute_ecdf(np.mean(ref_pwmat[lab_ind, :], axis=0), thresholds=metric_thresholds)
+    pdf_fn = opj(_fg_data, 'ncov_tcrs', 'adaptive_bio_r2', 'ecdf_2020-AUG-31',
+                 ecdf_fn.replace('mira_epitope_', 'M').replace('feather', 'pdf'))
+    with PngPdfPages(pdf_fn) as pdf:
+        ind = (e['fclust_thresh'] == 0)
 
-            with(open(opj(out_folder, f'{epitope_name}_{metric}_repclust_FCT{fclust_thresh}.npz', 'wb'))) as fh:
-                np.savez(fh, rep_clust_ecdf, allow_pickle=False)
+        for metric, egby in e.loc[ind].groupby(['metric']):
+            figh = plt.figure(figsize=(11, 8))
+            axh = plot_mean_ecdf(figh, egby, gbcols=['versus', 'fclust_thresh'])
+            pdf.savefig(figh)
 
+        figh = plt.figure(figsize=(11, 8))
+        axh = plot_mean_roc(figh, e.loc[ind], gbcols=['metric', 'fclust_thresh'])
+        pdf.savefig(figh)
+        plt.close(figh)
+        
+        # emat = e.loc[(e['versus'] == 'rep') & (e['metric'] == 'edit') & (e['fclust_thresh'] == 1)].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
+        for (vs, metric, fclust_thresh), gby in e.loc[ind].groupby(['versus', 'metric', 'fclust_thresh']):
+            emat = gby.set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
+            colors = gby.drop_duplicates(subset=['label', 'pgen'])['pgen'].map(partial(color_lu, norm_pgen, mpl.cm.viridis.colors)).values
 
+            figh = plt.figure(figsize=(11, 8))
+            axh = plot_one_ecdf(figh, emat.values, emat.columns, e['name'].iloc[0], colors=colors)
+            plt.title(f"{e['name'].iloc[0]} vs. {vs}: {metric} clustered@{fclust_thresh}")
+            pdf.savefig(figh)
+            plt.close(figh)
 
-"""Plotting"""
-    """Compute pgen of each MIRA TCR"""
-    olga_beta  = OlgaModel(chain_folder="human_T_beta", recomb_type="VDJ")
-    tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(tr.clone_df.cdr3_b_aa)
-    tr.clone_df = tr.clone_df.assign(pgen_b_color=tr.clone_df['pgen_cdr3_b_aa'].map(partial(color_lu, norm_pgen, mpl.cm.viridis.colors)))
-
-    """Force pgen > 0: there were 7 CDR3 alphas with pgen = 0"""
-    # tr.clone_df = tr.clone_df.loc[(tr.clone_df['pgen_cdr3_b_aa'] > 0)]
+        for (metric, fclust_thresh), gby in e.loc[ind].groupby(['metric', 'fclust_thresh']):
+            figh = plt.figure(figsize=(11, 8))
+            axh = plot_one_roc(figh, gby)
+            plt.title(f"{gby['name'].iloc[0]}: {metric} clustered@{fclust_thresh}")
+            pdf.savefig(figh)
+            plt.close(figh)

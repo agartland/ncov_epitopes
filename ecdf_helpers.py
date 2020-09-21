@@ -4,7 +4,9 @@ import matplotlib as mpl
 
 __all__ = ['compute_ecdf',
            'make_step',
-           'gmean10']
+           'gmean10',
+           'color_lu',
+           'norm_pgen']
 
 def compute_ecdf(data, counts=None, thresholds=None):
     """Computes the empirical cumulative distribution function at pre-specified
@@ -36,18 +38,6 @@ def make_step(t, y, add00=False):
 def gmean10(vec, axis=0):
     return 10 ** (np.mean(np.log10(vec), axis=axis))
 
-def plot_one_ecdf(tr, ecdf, thresholds, epitope_name, alpha=0.3):
-    figh = plt.figure(figsize=(8, 6))
-    axh = figh.add_axes([0.15, 0.15, 0.6, 0.7], yscale='log')
-    plt.ylabel(f'Proportion of {epitope_name} clones')
-    plt.xlabel(f'Distance from {epitope_name} clone')
-
-    for tari in np.random.permutation(np.arange(ecdf.shape[0])):
-        x, y = make_step(thresholds, ecdf[tari, :])
-        axh.plot(x, y,
-                 color=tr.clone_df['pgen_b_color'].iloc[tari],
-                 alpha=alpha)
-    return figh
 
 norm_pgen = mpl.colors.LogNorm(vmin=1e-10, vmax=1e-6) 
 
