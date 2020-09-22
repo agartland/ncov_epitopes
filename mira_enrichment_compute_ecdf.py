@@ -37,11 +37,11 @@ def compute_ecdf(data, counts=None, thresholds=None, weights=None):
     if counts is None:
         counts = np.ones(data.shape)
     
-    tot = np.sum(counts * weights)
+    tot = np.sum(counts)
     # ecdf = np.array([np.sum((data <= t) * counts)/tot for t in thresholds])
     
     """Vectorized and faster, using broadcasting for the <= expression"""
-    ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None] * weights[:, None], axis=0) + 1) / (tot + 1)
+    ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None] * weights[:, None], axis=0)) / (tot)
     # n_ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None], axis=0) >= n).astype(int)
     return ecdf
 

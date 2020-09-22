@@ -30,10 +30,11 @@ ecdf_fn = 'mira_epitope_114_144_LPPAYTNSF_ecdfs.feather'
 ecdf_fn = 'mira_epitope_7_4448_SEHDYQIGGYTEKW_YQIGGYTEK_YQIGGYTEKW_ecdfs.feather'
 ecdf_fn = 'mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET_ecdfs.feather'
 
-files = sorted([os.path.split(ff)[1] for ff in glob(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs/*.feather'))])
+files = sorted([os.path.split(ff)[1] for ff in glob(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs_2020-SEP-21/*.feather'))])
+
 for ecdf_fn in files:
     print(ecdf_fn)
-    e = feather.read_dataframe(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs', ecdf_fn))
+    e = feather.read_dataframe(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs_2020-SEP-21', ecdf_fn))
     # e = e.rename({'verus':'versus'}, axis=1)
     # print(e.groupby(['name', 'versus', 'metric', 'fclust_thresh'])['thresholds'].count())
 
@@ -113,7 +114,9 @@ for ecdf_fn in files:
                          text=t,
                          size='xx-small',
                          ha='right',
-                         va='bottom')
+                         va='bottom',
+                         textcoords='offset points',
+                         xytext=(-3, 3))
         xl = plt.xlim()
         yl = plt.ylim()
         mnmx = [ess['ecdf'].min(), ess['ecdf'].max()]
@@ -155,13 +158,13 @@ for ecdf_fn in files:
         yl = plt.ylim()
         mnmx = [ess['ecdf'].min(), ess['ecdf'].max()]
         plt.plot(mnmx, mnmx, '--', color='gray', lw=2)
-        plt.plot(refp, repp, '--', color='gray', lw=2)
+        # plt.plot(refp, repp, '--', color='gray', lw=2)
         plt.ylim(yl)
         plt.xlim(xl)
         plt.legend(loc=0)
         return axh
 
-    pdf_fn = opj(_fg_data, 'ncov_tcrs', 'adaptive_bio_r2', 'ecdf_2020-AUG-31',
+    pdf_fn = opj(_fg_data, 'ncov_tcrs', 'adaptive_bio_r2', 'ecdf_2020-SEP-21',
                  ecdf_fn.replace('mira_epitope_', 'M').replace('feather', 'pdf'))
     with PngPdfPages(pdf_fn) as pdf:
         ind = (e['fclust_thresh'] == 0)
