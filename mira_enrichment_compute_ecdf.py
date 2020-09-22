@@ -22,7 +22,7 @@ import argparse
 """EXAMPLE:
 python mira_enrichment_compute_ecdf.py --rep ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv \
                                        --ref ~/fg_data/ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/mira_bkgd/mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.olga100K_brit100K_bkgd.csv \
-                                       --ncpus 2 \
+                                       --ncpus 1 \
                                        --subsample 100
 """
 
@@ -45,7 +45,7 @@ def compute_ecdf(data, counts=None, thresholds=None, weights=None):
     # n_ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None], axis=0) >= n).astype(int)
     return ecdf
 
-def _pwrect(tr, clone_df1, clone_df2=None, metric='tcrdist', chain='beta', ncpus=3):
+def _pwrect(tr, clone_df1, clone_df2=None, metric='tcrdist', chain='beta', ncpus=1):
     if clone_df2 is None:
         clone_df2 = tr.clone_df
     

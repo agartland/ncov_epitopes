@@ -34,7 +34,7 @@ files = sorted([os.path.split(ff)[1] for ff in glob(opj(_fg_data, 'ncov_tcrs/ada
 
 for ecdf_fn in files:
     print(ecdf_fn)
-    e = feather.read_dataframe(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs_2020-SEP-21', ecdf_fn))
+    e = feather.read_dataframe(opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/ecdfs_2020-SEP-21/', ecdf_fn))
     # e = e.rename({'verus':'versus'}, axis=1)
     # print(e.groupby(['name', 'versus', 'metric', 'fclust_thresh'])['thresholds'].count())
 
@@ -48,6 +48,10 @@ for ecdf_fn in files:
     p = np.logspace(np.log10(1/refk), 0, 500)
     repp = (p*repk + 1) / (repk + 1)
     refp = (p*refk + 1) / (refk + 1)
+    min_rep_freq = 1 / (repk*2)
+    min_ref_freq = 1e-8
+    min_freq = min(min_rep_freq, min_ref_freq)
+    max_freq = 0.5
 
     """Plotting"""
     def plot_one_ecdf(figh, ecdf, thresholds, epitope_name, colors=None, alpha=0.1):
@@ -58,14 +62,15 @@ for ecdf_fn in files:
             colors = ['k']*ecdf.shape[0]
 
         for tari in np.random.permutation(np.arange(ecdf.shape[0])):
-            x, y = make_step(thresholds, ecdf[tari, :])
+            x, y = make_step(thresholds, ecdf[tari, :], addMNMN=True)
             axh.plot(x, y,
                      color=colors[tari],
                      alpha=alpha)
-        x, y = make_step(thresholds, np.mean(ecdf, axis=0))
+        x, y = make_step(thresholds, np.mean(ecdf, axis=0), addMNMN=True)
         axh.plot(x, y,
                  color='r', #tr.clone_df['pgen_b_color'].iloc[tari],
                  alpha=1)
+        plt.ylim((min_freq, max_freq))
         return axh
 
     def plot_mean_ecdf(figh, e, gbcols=['versus', 'metric', 'fclust_thresh']):
@@ -74,11 +79,12 @@ for ecdf_fn in files:
         plt.xlabel(f'Distance from clone')
         for gbvals, gby in e.groupby(gbcols):
             emat = gby.set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
-            x, y = make_step(emat.columns, np.mean(emat.values, axis=0))
+            x, y = make_step(emat.columns, np.mean(emat.values, axis=0), addMNMN=True)
             axh.plot(x, y, alpha=0.6, label='|'.join([str(s) for s in gbvals]))
             lab = '|'.join([e.iloc[0][s] for s in ['versus', 'metric', 'fclust_thresh'] if not s in gbcols])
             plt.title(f"{e['name'].iloc[0]}: {lab}")
         plt.legend(loc=0)
+        plt.ylim((min_freq, max_freq))
         return axh
 
     def plot_one_roc(figh, ess, alpha=0.1):
@@ -97,11 +103,11 @@ for ecdf_fn in files:
         colors = ess.drop_duplicates(subset=['label', 'pgen'])['pgen'].map(partial(color_lu, norm_pgen, mpl.cm.viridis.colors)).values
         if alpha > 0:
             for tari in np.random.permutation(np.arange(rep.shape[0])):
-                x, y = make_step(ref.values[tari, :], rep.values[tari, :])
+                x, y = make_step(ref.values[tari, :], rep.values[tari, :], addMNMN=True)
                 axh.plot(x, y,
                          color=colors[tari],
                          alpha=alpha)
-        x, y = make_step(np.mean(ref, axis=0), np.mean(rep, axis=0))
+        x, y = make_step(np.mean(ref, axis=0), np.mean(rep, axis=0), addMNMN=True)
         axh.plot(x, y,
                  color='r', #tr.clone_df['pgen_b_color'].iloc[tari],
                  alpha=1)
@@ -117,11 +123,13 @@ for ecdf_fn in files:
                          va='bottom',
                          textcoords='offset points',
                          xytext=(-3, 3))
+        plt.ylim((min_freq, max_freq))
+        plt.xlim((min_freq, max_freq))
         xl = plt.xlim()
         yl = plt.ylim()
         mnmx = [ess['ecdf'].min(), ess['ecdf'].max()]
         plt.plot(mnmx, mnmx, '--', color='gray', lw=2)
-        plt.plot(refp, repp, '--', color='gray', lw=2)
+        #plt.plot(refp, repp, '--', color='gray', lw=2)
         plt.ylim(yl)
         plt.xlim(xl)
         return axh
@@ -139,7 +147,7 @@ for ecdf_fn in files:
 
             rep = gby.loc[gby['versus'] == 'rep'].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
             ref = gby.loc[gby['versus'] == 'ref'].set_index(['label', 'thresholds'])['ecdf'].unstack('thresholds')
-            x, y = make_step(np.mean(ref, axis=0), np.mean(rep, axis=0))
+            x, y = make_step(np.mean(ref, axis=0), np.mean(rep, axis=0), addMNMN=True)
             axh.plot(x, y, alpha=0.6, label='|'.join([str(s) for s in gbvals]))
             lab = '|'.join([e.iloc[0][s] for s in ['versus', 'metric', 'fclust_thresh'] if not s in gbcols])
             plt.title(f"{e['name'].iloc[0]}: {lab}")
@@ -153,7 +161,11 @@ for ecdf_fn in files:
                              text=t,
                              size='xx-small',
                              ha='right',
-                             va='bottom')
+                             va='bottom',
+                             textcoords='offset points',
+                             xytext=(-3, 3))
+        plt.ylim((min_freq, max_freq))
+        plt.xlim((min_freq, max_freq))
         xl = plt.xlim()
         yl = plt.ylim()
         mnmx = [ess['ecdf'].min(), ess['ecdf'].max()]
@@ -168,6 +180,7 @@ for ecdf_fn in files:
                  ecdf_fn.replace('mira_epitope_', 'M').replace('feather', 'pdf'))
     with PngPdfPages(pdf_fn) as pdf:
         ind = (e['fclust_thresh'] == 0)
+        e.loc[ind]
 
         for metric, egby in e.loc[ind].groupby(['metric']):
             figh = plt.figure(figsize=(11, 8))
@@ -186,13 +199,13 @@ for ecdf_fn in files:
 
             figh = plt.figure(figsize=(11, 8))
             axh = plot_one_ecdf(figh, emat.values, emat.columns, e['name'].iloc[0], colors=colors)
-            plt.title(f"{e['name'].iloc[0]} vs. {vs}: {metric} clustered@{fclust_thresh}")
+            plt.title(f"{e['name'].iloc[0]} vs. {vs}: {metric}")
             pdf.savefig(figh)
             plt.close(figh)
 
         for (metric, fclust_thresh), gby in e.loc[ind].groupby(['metric', 'fclust_thresh']):
             figh = plt.figure(figsize=(11, 8))
             axh = plot_one_roc(figh, gby)
-            plt.title(f"{gby['name'].iloc[0]}: {metric} clustered@{fclust_thresh}")
+            plt.title(f"{gby['name'].iloc[0]}: {metric}")
             pdf.savefig(figh)
             plt.close(figh)

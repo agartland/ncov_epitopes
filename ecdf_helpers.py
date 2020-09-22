@@ -24,12 +24,16 @@ def compute_ecdf(data, counts=None, thresholds=None):
     # n_ecdf = (np.sum((data[:, None] <= thresholds[None, :]) * counts[:, None], axis=0) >= n).astype(int)
     return ecdf
 
-def make_step(t, y, add00=False):
+def make_step(t, y, add00=False, addMNMN=False):
     y = np.asarray(y)
     t = np.asarray(t)
     if add00:
         t = np.concatenate(([0], t.ravel()))
         y = np.concatenate(([0], y.ravel()))
+    elif addMNMN:
+        pass
+        #t = np.concatenate(([0], t.ravel()))
+        #y = np.concatenate(([0], y.ravel()))
 
     t = np.concatenate(([t[0]], np.repeat(t[1:].ravel(), 2)))
     y = np.repeat(y.ravel(), 2)[:-1]
