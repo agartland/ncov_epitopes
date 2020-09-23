@@ -16,6 +16,7 @@ import pwseqdist as pwsd
 import tcrdist as td
 from tcrdist.repertoire import TCRrep
 from tcrdist.pgen import OlgaModel
+from tcrdist.automate import auto_pgen
 
 import argparse
 
@@ -80,16 +81,27 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
         ref_tr = TCRrep(cell_df=ref_df, 
                         organism='human', 
                         chains=['beta'],
-                        compute_distances=False)
+                        compute_distances=False,
+                        store_all_cdr=False)
     else:    
         ref_tr = TCRrep(cell_df=ref_df.sample(n=ss, replace=False), 
                         organism='human', 
                         chains=['beta'],
-                        compute_distances=False)
+                        compute_distances=False,
+                        store_all_cdr=False)
 
-    """Compute pgen of each MIRA TCR"""
-    olga_beta  = OlgaModel(chain_folder="human_T_beta", recomb_type="VDJ")
-    ref_tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(ref_tr.clone_df.cdr3_b_aa)
+    rep_df = pd.read_csv(rep_fn).assign(count=1)
+    tr = TCRrep(cell_df=rep_df[['v_b_gene','j_b_gene','cdr3_b_aa','epitope','experiment','subject', 'count']], 
+                organism='human', 
+                chains=['beta'], 
+                db_file='alphabeta_gammadelta_db.tsv', 
+                compute_distances=False)
+
+    if tr.clone_df.shape[0] > 6000:
+        """Limit size of MIRA set to 2000"""
+        tr.clone_df = tr.clone_df.sample(n=6000, replace=False, random_state=110820)
+
+    auto_pgen(tr)
 
     out = []
     print(rep_fn)
@@ -109,19 +121,6 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
 
         # rep_fn = opj(_fg_data, 'ncov_tcrs/adaptive_bio_r2/tcrs_by_mira_epitope/pw_computed', rep_fn)
         print(f'\t{metric}')
-        rep_df = pd.read_csv(rep_fn).assign(count=1)
-
-        tr = TCRrep(cell_df=rep_df[['v_b_gene','j_b_gene','cdr3_b_aa','epitope','experiment','subject', 'count']], 
-                    organism='human', 
-                    chains=['beta'], 
-                    db_file='alphabeta_gammadelta_db.tsv', 
-                    compute_distances=False)
-
-        if tr.clone_df.shape[0] > 2000:
-            """Limit size of MIRA set to 2000"""
-            tr.clone_df = tr.clone_df.sample(n=2000, replace=False, random_state=110820)
-
-        tr.clone_df['pgen_cdr3_b_aa'] = olga_beta.compute_aa_cdr3_pgens(tr.clone_df.cdr3_b_aa)
         
         """with open(rep_fn, 'rb') as fh:
             tr = dill.load(fh)"""
@@ -205,5 +204,5 @@ if __name__ == '__main__':
                      'mira_epitope_60_436_MWSFNPETNI_SFNPETNIL_SMWSFNPET.tcrdist3.csv.dill']"""
 
     out = run_one(ref_fn=args.ref, rep_fn=args.rep, ss=args.subsample, ncpus=args.ncpus)
-    print('Writing results to:', f'{args.rep.replace(".tcrdist3.csv", "")}_ecdfs.feather')
-    feather.write_dataframe(out, f'{args.rep.replace(".tcrdist3.csv", "")}_ecdfs.feather')
+    print('Writing results to:', f'{args.rep}_ecdfs.feather')
+    feather.write_dataframe(out, f'{args.rep}_ecdfs.feather')
