@@ -69,7 +69,7 @@ out = pd.merge(kmers,
 
 summ = out[['kmer', 'k', 'ORF', 'match_species', 'mismatches']].fillna('>3').groupby(['k', 'mismatches', 'match_species'])['kmer'].count()
 print(summ)
-out.to_csv(opj(proj_folder, 'data', 'hcov_2020-JUL-30', 'immuneCODE_xreact_whla.csv'))
+#out.to_csv(opj(proj_folder, 'data', 'hcov_2020-JUL-30', 'immuneCODE_xreact_whla.csv'))
 
 """Join with the homology data (including HLA)"""
 tmp = []
@@ -94,4 +94,15 @@ out = pd.merge(kmers,
 
 summ = out[['kmer', 'k', 'ORF', 'match_species', 'mismatches']].fillna('>5').groupby(['k', 'mismatches', 'match_species'])['kmer'].count()
 print(summ)
-out.to_csv(opj(proj_folder, 'data', 'hcov_2020-JUL-30', 'immuneCODE_xreact_nohla.csv'))
+#out.to_csv(opj(proj_folder, 'data', 'hcov_2020-JUL-30', 'immuneCODE_xreact_nohla.csv'))
+
+
+upeps = list(set(out['kmer'].tolist() + out['match'].dropna().tolist()))
+results_folder = opj(_fg_data, 'ncov_epitopes', 'data', 'mira_hla_2020-SEP-24')
+for k in [8, 9, 10, 11]:
+    with open(opj(results_folder, f'mira.{k}.mers'), 'w') as fh:
+        for mer in upeps:
+            if len(mer) == k and not 'X' in mer:
+                fh.write(f'{mer}\n')
+
+

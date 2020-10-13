@@ -107,10 +107,10 @@ def run_one(ref_fn, rep_fn, ss=-1, ncpus=1):
     print(rep_fn)
     for metric in ['tcrdist', 'tcrdist-cdr3', 'edit']:
         if 'tcr' in metric:
-            metric_thresholds = np.arange(1, 101)
+            metric_thresholds = np.arange(76)
             fcluster_thresholds = [0, 25, 50]
         else:
-            metric_thresholds = np.arange(1, 9)
+            metric_thresholds = np.arange(9)
             fcluster_thresholds = [0, 1, 2]
 
         """Enforce no clustering analysis"""
